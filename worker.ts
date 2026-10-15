@@ -81,6 +81,21 @@ async function runOmni(system: string, user: string, apiKey: string) {
   return content;
 }
 
+async function runWorkersAI(system: string, user: string, env: Env) {
+  const result = await env.AI.run(MODEL, {
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    max_tokens: 3000,
+    temperature: 0.3,
+    response_format: { type: 'json_object' },
+  });
+  return typeof result === 'object' && result !== null && 'response' in result
+    ? String((result as { response: unknown }).response)
+    : String(result);
+}
+
 async function generatePrompt(request: Request, env: Env) {
   const body = (await request.json()) as PromptRequest;
   if (!body.userInput?.trim()) {
@@ -90,22 +105,19 @@ async function generatePrompt(request: Request, env: Env) {
   const system = `You are a world-class Prompt Engineering specialist. Transform the user's idea into a production-grade structured prompt. Return ONLY valid JSON with keys full, compact, role, objective, frameworkUsed, and tips. The full prompt must use Markdown headings (# Role, # Objective, # Context, # Instructions, # Constraints & Edge Cases, # Output Format). The compact prompt must be under 2,000 characters. Include 2-3 actionable tips.`;
   const user = `User's Core Idea:\n"""\n${body.userInput.trim()}\n"""\n\nSelected Framework: ${(body.framework || 'standard').toUpperCase()}\nDesired Tone: ${body.tone || 'Professional & Authoritative'}\n${body.audience ? `Target Audience: ${body.audience}\n` : ''}${body.constraints ? `Explicit User Constraints: ${body.constraints}\n` : ''}${body.refinementFeedback && body.previousPrompt ? `Previous Prompt:\n"""\n${body.previousPrompt}\n"""\nRefinement Request:\n"""\n${body.refinementFeedback}\n"""\n` : ''}`;
 
-  const raw = env.OMNI_API_KEY
-    ? await runOmni(system, user, env.OMNI_API_KEY)
-    : await (async () => {
-      const result = await env.AI.run(MODEL, {
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-        max_tokens: 3000,
-        temperature: 0.3,
-        response_format: { type: 'json_object' },
-      });
-      return typeof result === 'object' && result !== null && 'response' in result
-        ? String((result as { response: unknown }).response)
-        : String(result);
-    })();
+  let raw: string;
+  if (env.OMNI_API_KEY) {
+    try {
+      raw = await runOmni(system, user, env.OMNI_API_KEY);
+    } catch (error) {
+      // Keep the public app available if the external OpenAI-compatible gateway
+      // redirects differently for a custom domain than for workers.dev.
+      console.warn('Omni API unavailable; falling back to Workers AI.', error);
+      raw = await runWorkersAI(system, user, env);
+    }
+  } else {
+    raw = await runWorkersAI(system, user, env);
+  }
   return json(parseModelResponse(raw));
 }
 
