@@ -13,7 +13,7 @@ interface PromptRequest {
   previousPrompt?: string;
 }
 
-const MODEL = '@cf/meta/llama-3.1-8b-instruct';
+const MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
