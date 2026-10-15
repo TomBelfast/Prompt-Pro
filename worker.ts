@@ -1,6 +1,7 @@
 interface Env {
   ASSETS: Fetcher;
   AI: Ai;
+  OMNI_API_KEY?: string;
 }
 
 interface PromptRequest {
@@ -14,6 +15,8 @@ interface PromptRequest {
 }
 
 const MODEL = '@cf/meta/llama-3.1-8b-instruct-fp8';
+const OMNI_BASE_URL = 'https://omni.aihub.ovh/v1';
+const OMNI_MODEL = 'agy/gemini-3.8-flash-high';
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -29,6 +32,38 @@ function parseModelResponse(raw: string): Record<string, unknown> {
   return JSON.parse(cleaned.slice(start, end + 1));
 }
 
+async function runOmni(system: string, user: string, apiKey: string) {
+  const response = await fetch(`${OMNI_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      authorization: `Bearer ${apiKey}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OMNI_MODEL,
+      messages: [
+        { role: 'system', content: system },
+        { role: 'user', content: user },
+      ],
+      max_tokens: 3000,
+      temperature: 0.3,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Omni API request failed (${response.status}).`);
+  }
+
+  const payload = (await response.json()) as {
+    choices?: Array<{ message?: { content?: unknown } }>;
+  };
+  const content = payload.choices?.[0]?.message?.content;
+  if (typeof content !== 'string' || !content.trim()) {
+    throw new Error('Omni API returned an empty response.');
+  }
+  return content;
+}
+
 async function generatePrompt(request: Request, env: Env) {
   const body = (await request.json()) as PromptRequest;
   if (!body.userInput?.trim()) {
@@ -38,18 +73,21 @@ async function generatePrompt(request: Request, env: Env) {
   const system = `You are a world-class Prompt Engineering specialist. Transform the user's idea into a production-grade structured prompt. Return ONLY valid JSON with keys full, compact, role, objective, frameworkUsed, and tips. The full prompt must use Markdown headings (# Role, # Objective, # Context, # Instructions, # Constraints & Edge Cases, # Output Format). The compact prompt must be under 2,000 characters. Include 2-3 actionable tips.`;
   const user = `User's Core Idea:\n"""\n${body.userInput.trim()}\n"""\n\nSelected Framework: ${(body.framework || 'standard').toUpperCase()}\nDesired Tone: ${body.tone || 'Professional & Authoritative'}\n${body.audience ? `Target Audience: ${body.audience}\n` : ''}${body.constraints ? `Explicit User Constraints: ${body.constraints}\n` : ''}${body.refinementFeedback && body.previousPrompt ? `Previous Prompt:\n"""\n${body.previousPrompt}\n"""\nRefinement Request:\n"""\n${body.refinementFeedback}\n"""\n` : ''}`;
 
-  const result = await env.AI.run(MODEL, {
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-    max_tokens: 3000,
-    temperature: 0.3,
-  });
-
-  const raw = typeof result === 'object' && result !== null && 'response' in result
-    ? String((result as { response: unknown }).response)
-    : String(result);
+  const raw = env.OMNI_API_KEY
+    ? await runOmni(system, user, env.OMNI_API_KEY)
+    : await (async () => {
+      const result = await env.AI.run(MODEL, {
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user },
+        ],
+        max_tokens: 3000,
+        temperature: 0.3,
+      });
+      return typeof result === 'object' && result !== null && 'response' in result
+        ? String((result as { response: unknown }).response)
+        : String(result);
+    })();
   return json(parseModelResponse(raw));
 }
 
