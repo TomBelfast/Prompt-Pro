@@ -1,0 +1,8 @@
+{
+  "name": "Remix Professional Prompt ",
+  "description": "An application that transforms a simple user prompt into a professionally structured prompt using a predefined Markdown format, powered by the Gemini API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
