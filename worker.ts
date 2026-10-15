@@ -47,6 +47,7 @@ async function runOmni(system: string, user: string, apiKey: string) {
       ],
       max_tokens: 3000,
       temperature: 0.3,
+      response_format: { type: 'json_object' },
     }),
   });
 
@@ -83,6 +84,7 @@ async function generatePrompt(request: Request, env: Env) {
         ],
         max_tokens: 3000,
         temperature: 0.3,
+        response_format: { type: 'json_object' },
       });
       return typeof result === 'object' && result !== null && 'response' in result
         ? String((result as { response: unknown }).response)
