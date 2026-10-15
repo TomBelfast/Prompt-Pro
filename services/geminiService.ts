@@ -33,7 +33,7 @@ export const generateStructuredPrompt = async (
   if (!response.ok) {
     let errorMessage = `Server responded with status ${response.status}`;
     try {
-      const errorData = await response.json();
+      const errorData = (await response.json()) as { error?: string };
       if (errorData?.error) {
         errorMessage = errorData.error;
       }
