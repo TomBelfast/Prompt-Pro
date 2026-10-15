@@ -243,7 +243,7 @@ export const App: React.FC = () => {
         <span>Remix Professional Prompt &bull; Structured Prompt Engineering</span>
         <span className="flex items-center gap-1.5">
           <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
-          Powered by Gemini 3.8 Flash
+          Powered by Cloudflare Workers AI
         </span>
       </footer>
     </div>
