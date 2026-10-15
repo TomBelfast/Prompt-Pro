@@ -28,8 +28,24 @@ function parseModelResponse(raw: string): Record<string, unknown> {
   const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
   const start = cleaned.indexOf('{');
   const end = cleaned.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('Workers AI returned invalid JSON.');
-  return JSON.parse(cleaned.slice(start, end + 1));
+  if (start >= 0 && end > start) {
+    try {
+      return JSON.parse(cleaned.slice(start, end + 1));
+    } catch {
+      // Some hosted models still emit almost-valid JSON despite JSON mode.
+    }
+  }
+
+  // Keep the UI usable when a provider ignores structured-output instructions.
+  // The next request can still be retried, and the raw answer remains visible.
+  return {
+    full: cleaned,
+    compact: cleaned.slice(0, 2000),
+    role: 'Prompt Engineering Assistant',
+    objective: 'Transform the supplied idea into a production-ready prompt.',
+    frameworkUsed: 'STANDARD',
+    tips: ['Review the generated structure and refine it if needed.'],
+  };
 }
 
 async function runOmni(system: string, user: string, apiKey: string) {
